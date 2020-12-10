@@ -5,7 +5,7 @@ __all__ = ['term', 'logfile', 'github_auth_device', 'token', 'limit_cb', 'api', 
 
 # Cell
 import sys, signal, shutil, os, json, enlighten, emoji, blessed
-from .dashing import *
+from dashing import *
 from collections import defaultdict
 from warnings import warn
 from itertools import islice
@@ -68,7 +68,7 @@ def fetch_events(types=None):
     "Generate an infinite stream of events optionally filtered to `types`"
     while True:
         yield from (o for o in api.activity.list_public_events() if not types or o.type in types)
-        sleep(0.1)
+        sleep(0.2)
 
 # Cell
 Events = dict(
@@ -113,25 +113,19 @@ def tail_events():
     for ev in fetch_events(): print_event(ev, commits)
 
 # Cell
+def _pr_row(*its): print(f"{its[0]: <30} {its[1]: <6} {its[2]: <5} {its[3]: <6} {its[4]: <7}")
 def watch_users():
     users,users_events = defaultdict(int),defaultdict(lambda: defaultdict(int))
     for xs in chunked(fetch_events(), 10):
         for x in xs:
-            login = x.actor.login
-            users[login] += 1
-            users_events[login][x.type] += 1
+            users[x.actor.login] += 1
+            users_events[x.actor.login][x.type] += 1
 
-        print (term.clear())
-        print ("User".ljust(30), "Events".ljust(6), "PRs".ljust(5), "Issues".ljust(6), "Pushes".ljust(7))
-        sorted_users = sorted(users.items(), key = lambda kv: (kv[1], kv[0]), reverse=True)
-        for i in range(20):
-            u = sorted_users[i]
-            ue = users_events[u[0]]
-            print(u[0].ljust(30), str(u[1]).ljust(6),
-                  str(ue.get('PullRequestEvent', '')).ljust(5),
-                  str(ue.get('IssuesEvent', '')).ljust(6),
-                  str(ue.get('PushEvent', '')).ljust(7))
-        sleep(1)
+        print(term.clear())
+        _pr_row("User", "Events", "PRs", "Issues", "Pushes")
+        sorted_users = sorted(users.items(), key=lambda o: (o[1],o[0]), reverse=True)
+        for u in sorted_users[:20]:
+            _pr_row(*u, *itemgetter('PullRequestEvent','IssuesEvent','PushEvent')(users_events[u[0]]))
 
 # Cell
 def _push_to_log(e):
@@ -153,7 +147,6 @@ def quad_logs():
             f = [_to_log,_push_to_log][x.type == 'PushEvent']
             d[x.type].append(f(x)[:95])
         ui.display()
-        sleep(0.1)
 
 # Cell
 def simple():
@@ -170,7 +163,7 @@ def _signal_handler(sig, frame):
 # Cell
 def _help(): _exit("Usage: ghtop <tail|quad|users|simple>")
 if __name__ == '__main__' and not IN_NOTEBOOK:
-    if len(sys.argv) < 2: _exit(help_msg)
+    if len(sys.argv) < 2: _help()
     signal.signal(signal.SIGINT, _signal_handler)
     dict(tail=tail_events, quad=quad_logs, users=watch_users, simple=simple
         ).get(sys.argv[1],_help)()
