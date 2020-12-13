@@ -1,7 +1,7 @@
 
 
-__all__ = ['term', 'logfile', 'github_auth_device', 'limit_cb', 'api', 'Events', 'print_event', 'tail_events',
-           'watch_users', 'quad_logs', 'simple', 'main']
+__all__ = ['term', 'github_auth_device', 'limit_cb', 'Events', 'print_event', 'tail_events', 'watch_users', 'quad_logs',
+           'simple', 'main']
 
 
 import sys, signal, shutil, os, json, emoji, enlighten
@@ -17,7 +17,6 @@ from ghapi.all import *
 
 
 term = Terminal()
-logfile = Path("log.txt")
 
 
 def github_auth_device(wb='', n_polls=9999):
@@ -46,18 +45,6 @@ def limit_cb(rem,quota):
     if rem < 1000: print(f"{w}\nRemaining calls: {rem} out of {quota}\n{w}", file=sys.stderr)
 
 
-def _get_api():
-    path = Path.home()/".ghtop_token"
-    if path.is_file():
-        try: token = path.read_text().strip()
-        except: _exit("Error reading token")
-    else: token = github_auth_device()
-    path.write_text(token)
-    return GhApi(limit_cb=limit_cb, token=token)
-
-api = _get_api()
-
-
 Events = dict(
     IssuesEvent_closed=('⭐', 'closed', noop),
     IssuesEvent_opened=('📫', 'opened', noop),
@@ -78,10 +65,10 @@ def _to_log(e):
     elif e.type == "ReleaseEvent": return f'🚀 {login} released {e.payload.release.tag_name} of {repo}'
 
 
-def print_event(e, commits_counter):
+def print_event(e, counter):
     res = _to_log(e)
     if res: print(res)
-    elif e.type == "PushEvent": [commits_counter.update() for c in e.payload.commits]
+    elif counter and e.type == "PushEvent": [counter.update() for c in e.payload.commits]
     elif e.type == "SecurityAdvisoryEvent": print(term.blink("SECURITY ADVISORY"))
 
 
@@ -132,6 +119,16 @@ def simple(evts):
     for ev in evts: print(f"{ev.actor.login} {ev.type} {ev.repo.name}")
 
 
+def _get_token():
+    path = Path.home()/".ghtop_token"
+    if path.is_file():
+        try: return path.read_text().strip()
+        except: _exit("Error reading token")
+    else: token = github_auth_device()
+    path.write_text(token)
+    return token
+
+
 def _signal_handler(sig, frame):
     if sig != signal.SIGINT: return
     print(term.exit_fullscreen(),term.clear(),term.normal)
@@ -152,5 +149,6 @@ def main(mode:         Param("Operation mode to run", _OpModes),
     if filt and not filtval: _exit("Must pass `filter_value` if passing `filter_type`")
     if filtval and not filt: _exit("Must pass `filter_type` if passing `filter_value`")
     kwargs = {filt:filtval} if filt else {}
+    api = GhApi(limit_cb=limit_cb, token=_get_token)
     evts = api.fetch_events(types=types, incl_bot=include_bots, **kwargs)
     _funcs[mode](evts)
