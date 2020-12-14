@@ -149,6 +149,6 @@ def main(mode:         Param("Operation mode to run", _OpModes),
     if filt and not filtval: _exit("Must pass `filter_value` if passing `filter_type`")
     if filtval and not filt: _exit("Must pass `filter_type` if passing `filter_value`")
     kwargs = {filt:filtval} if filt else {}
-    api = GhApi(limit_cb=limit_cb, token=_get_token)
+    api = GhApi(limit_cb=limit_cb, token=_get_token())
     evts = api.fetch_events(types=types, incl_bot=include_bots, **kwargs)
     _funcs[mode](evts)
